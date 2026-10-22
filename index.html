@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover,viewport-fit=cover">
+<meta name="theme-color" content="#f0f4fb">
+<title>محاكاة خدمة USSD</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--blue:#1881ee;--bg:#f0f4fb;--ink:#1f1f1f;--green:#1e8e3e;--dial:#ecedf4}
+html,body{margin:0;width:100%;height:100%;font-family:"Google Sans Text","Google Sans",Roboto,"Noto Sans Arabic",system-ui,sans-serif;background:var(--bg);color:var(--ink);overflow:hidden}
+button,input{font:inherit}
+.phone{position:absolute;top:0;left:0;width:360px;height:800px;transform-origin:0 0;background:var(--bg);overflow:hidden}
+/* contacts */
+.contacts{position:absolute;top:0;left:12px;right:12px;bottom:var(--nav,80px);overflow-y:auto;display:flex;flex-direction:column;gap:2px;scrollbar-width:none}
+.contacts::-webkit-scrollbar{display:none}
+.suggested{flex:0 0 auto;margin:39px 0 10px;height:24px;line-height:24px;padding-right:21px;font-size:14px;color:#2462a5;text-align:right}
+.contact{flex:0 0 auto;height:72px;background:#fff;border-radius:4px;display:flex;align-items:center;gap:16px;padding:0 16px 0 28px;direction:rtl;cursor:pointer}
+.contact:nth-child(2){border-radius:20px 20px 4px 4px}.contact:last-child{border-radius:4px 4px 20px 20px}.contact:nth-child(2):last-child{border-radius:20px}
+.avatar{width:40px;height:40px;flex:0 0 40px;border-radius:50%;background:#79d68e;display:grid;place-items:center;font-size:20px;color:#174d2b}
+.contact-info{flex:1;text-align:right;min-width:0}
+.contact-name{font-size:16px;line-height:24px;color:#1f1f1f;white-space:nowrap}
+.contact-phone{font-size:14px;line-height:20px;color:#444746;white-space:nowrap}
+.num-ltr{direction:ltr;unicode-bidi:isolate;display:inline-block}
+.phone-icon{width:24px;height:24px;flex:0 0 24px;order:2}
+.empty{padding:20px;text-align:center;color:#666}
+/* dial area */
+.dial-area{position:absolute;left:0;right:0;bottom:0;height:510px;background:var(--dial);border-radius:24px 24px 0 0;padding:0 8px}
+.display{height:54px;margin-bottom:16.5px;display:flex;align-items:center;direction:rtl}
+.erase{flex:0 0 auto;border:0;background:transparent;padding:0;margin-right:9.5px;width:26px;height:26px;display:grid;place-items:center}
+#dial{flex:1;min-width:0;background:transparent;border:0;outline:0;text-align:center;font-size:30px;color:#171717;direction:ltr;padding:0}
+.keypad{direction:ltr;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.key{height:65px;border:0;border-radius:33px;background:#fff;color:#111;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0;box-shadow:none}
+.key .num{font-family:Roboto,Arial,sans-serif;font-size:32px;line-height:32px}
+.key small{font-family:Roboto,Arial,sans-serif;font-size:13px;line-height:13px;height:13px;color:#3b3b3b;margin-top:6px;display:flex;align-items:center}
+.call{display:flex;align-items:center;justify-content:center;gap:15px;direction:rtl;margin:16px auto 0;width:101px;height:54px;border:0;border-radius:27px;background:var(--green);color:#fff;font-size:16px;padding:0}
+.nav{position:absolute;bottom:0;height:var(--nav,80px);left:0;right:0;display:flex;align-items:center;justify-content:space-around;color:#555;background:var(--dial)}
+.nav .nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}.nav .nav-icon{font-size:24px;color:#42464c}.nav .active{color:#2d7ba6}.nav .active .nav-icon{background:#c8eaff;border-radius:30px;padding:2px 22px}
+.nav span{font-size:14px;opacity:.8}
+.view-home .dial-area{display:none}.view-home .nav{background:var(--bg)}.view-dial .contacts{pointer-events:none}
+/* overlay + sheets */
+.scrim{position:absolute;inset:0;background:#0000004d;display:none;z-index:4}
+.scrim.show{display:block}
+.sheet{position:absolute;z-index:5;bottom:var(--kb,0px);left:0;right:0;background:#fff;border-radius:24px 24px 0 0;padding:28px 27px 40px;display:none}
+.sheet.show{display:block}
+.sheet h2{font-size:16px;line-height:25.5px;font-weight:400;text-align:center;margin:0 0 18px;color:#000}
+.message{font-size:16px;line-height:25.5px;text-align:right;white-space:pre-line;color:#414141;min-height:25px;margin-bottom:22px}
+.ussd-input{width:100%;height:56px;border:2px solid var(--blue);border-radius:28px;background:#f0f0f0;outline:0;text-align:right;padding:0 18px;font-size:18px;direction:ltr;margin-bottom:18px}
+.actions{display:flex;gap:12px;direction:ltr}
+.actions button{height:46px;border:0;border-radius:23px;flex:1;font-size:16px}
+.send{background:var(--blue);color:#fff}.cancel{background:#f0f0f0;color:#333}
+.hint{font-size:12px;text-align:center;color:#6b6b6b;margin-top:12px}
+/* loading sheet: top 665.5, ring 26 */
+#loading{display:none;align-items:center;gap:10px;padding:0 15px 0 0;height:87px;font-size:17px;color:#222;direction:rtl;border-bottom:1px solid #e5e5e5}
+.sheet.busy{padding:30px 15px 48px!important}
+.sheet.busy>*:not(#loading){display:none!important}.sheet.busy #loading{display:flex;padding-bottom:31px;height:58px;font-size:16px}
+.spin{width:26px;height:26px;flex:0 0 26px;border-radius:50%;border:3.5px solid #333;position:relative}
+.spin:after{content:"";position:absolute;inset:4px;border-radius:50%;background:#333}
+@keyframes pl{50%{opacity:.4}}
+/* final sheet: top 553.5 */
+.sheet.final{padding:28px 27px 77px!important}
+.sheet.final h2{margin:0 0 18px}
+.sheet.final .message{text-align:center;min-height:0;margin:0 0 26px}
+.sheet.final .hint{display:none}
+.sheet.final .actions{margin:0}.sheet.final .cancel{background:var(--blue);color:#fff;height:46px;font-size:16px;border-radius:23px}
+</style>
+</head>
+<body>
+<div class="phone view-dial" id="phone">
+  <div class="contacts" id="contacts"></div>
+  <div class="dial-area">
+    <div class="display"><button class="erase" id="erase" aria-label="مسح"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="#5f6368" d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H7.07L2.4 12l4.66-7H22v14zm-11.59-2L14 13.41 17.59 17 19 15.59 15.41 12 19 8.41 17.59 7 14 10.59 10.41 7 9 8.41 12.59 12 9 15.59z"/></svg></button><input id="dial" aria-label="رقم الاتصال" readonly value=""></div>
+    <div class="keypad" id="keypad"></div>
+    <button class="call" id="call"><svg viewBox="0 0 24 24" width="24" height="24"><path fill="#fff" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg><span>اتصال</span></button>
+  </div>
+  <div class="nav"><div class="nav-item active" id="tab-dial"><span class="nav-icon">⦿</span><span>لوحة المفاتيح</span></div><div class="nav-item" id="tab-home"><span class="nav-icon">⌂</span><span>الصفحة الرئيسية</span></div></div>
+  <div class="scrim" id="scrim"></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true">
+    <div id="loading"><div class="spin"></div><span>جارٍ تشغيل رمز USSD...</span></div>
+    <h2>معلومات شركة الاتصالات</h2>
+    <div class="message" id="message"></div>
+    <input class="ussd-input" id="reply" inputmode="numeric" autocomplete="off" aria-label="الرد على رسالة الخدمة">
+    <div class="actions"><button class="send" id="send">إرسال</button><button class="cancel" id="cancel">إلغاء</button></div>
+  </section>
+</div>
+<script>
+const dial=document.getElementById('dial'), sheet=document.getElementById('sheet'), scrim=document.getElementById('scrim');
+const message=document.getElementById('message'), reply=document.getElementById('reply');
+let baseH=0,baseW=0;
+function sizePhone(){const ph=document.getElementById('phone');const W=innerWidth;baseW=W;baseH=innerHeight; /* الارتفاع الأصلي بدون لوحة المفاتيح */
+ const narrow=W<=480;const k=narrow?W/360:baseH/800;
+ ph.style.width=(narrow?W/k:360)+'px';ph.style.height=(baseH/k)+'px';
+ ph.style.left=narrow?'0px':((W-360*k)/2)+'px';ph.style.transform='scale('+k+')';
+ ph.dataset.k=k}
+function updateKb(){const ph=document.getElementById('phone');const k=Number(ph.dataset.k)||1;
+ const vv=window.visualViewport;const visH=vv?vv.height:innerHeight;
+ ph.style.setProperty('--kb',(Math.max(0,baseH-visH)/k)+'px');scrollTo(0,0)}
+/* نعيد حساب حجم الخلفية فقط عند تغيّر العرض (دوران الشاشة)؛ ظهور لوحة المفاتيح يغيّر الارتفاع فقط
+   فنحرّك النافذة المنبثقة عبر --kb دون تحريك أو تصغير الخلفية */
+function onResize(){if(innerWidth!==baseW)sizePhone();updateKb()}
+addEventListener('resize',onResize);
+if(window.visualViewport){window.visualViewport.addEventListener('resize',updateKb);window.visualViewport.addEventListener('scroll',updateKb)}
+sizePhone();updateKb();
+let stage=''; let destination='';
+const keys=[['1','VM'],['2','ABC'],['3','DEF'],['4','GHI'],['5','JKL'],['6','MNO'],['7','PQRS'],['8','TUV'],['9','WXYZ'],['*',''],['0','+'],['#','']];
+const keypad=document.getElementById('keypad');
+keys.forEach(([n,s])=>{const b=document.createElement('button');b.className='key';b.innerHTML=`<span class="num">${n}</span><small>${s==='VM'?'<svg viewBox="0 0 24 24" width="17" height="17"><path fill="#3b3b3b" d="M18.5 6C15.46 6 13 8.46 13 11.5c0 1.33.47 2.55 1.26 3.5H9.74c.79-.95 1.26-2.17 1.26-3.5C11 8.46 8.54 6 5.5 6S0 8.46 0 11.5 2.46 17 5.5 17h13c3.04 0 5.5-2.46 5.5-5.5S21.54 6 18.5 6zm-13 9C3.57 15 2 13.43 2 11.5S3.57 8 5.5 8 9 9.57 9 11.5 7.43 15 5.5 15zm13 0c-1.93 0-3.5-1.57-3.5-3.5S16.57 8 18.5 8 22 9.57 22 11.5 20.43 15 18.5 15z"/></svg>':(s||'&nbsp;')}</small>`;b.onclick=()=>{dial.value+=n};keypad.appendChild(b)});
+document.getElementById('erase').onclick=()=>dial.value=dial.value.slice(0,-1);
+document.getElementById('call').onclick=()=>{const v=dial.value.trim();if(v==='*110#')openStage('menu');else if(v)openStage('invalid')};
+const allContacts=[
+ {name:'هاني اللبناني',phone:'059-505-6531',label:'الجوال',color:'#79d68e',fg:'#174d2b',ch:'ه'},
+ {name:'المصطفاوي',phone:'+972592593423',label:'الجوال',color:'#d7dce7',fg:'#333',ch:'م'},
+ {name:'أحمد الخطيب',phone:'059-526-0181',label:'الجوال',color:'#f6c177',fg:'#5a3b0a',ch:'أ'},
+ {name:'سامي أبو شمالة',phone:'0595908301',label:'الجوال',color:'#9ecbff',fg:'#0c3b6b',ch:'س'},
+ {name:'محمد عطية',phone:'0596613186',label:'الجوال',color:'#f4a6b8',fg:'#6b1230',ch:'م'},
+ {name:'يوسف النجار',phone:'059-091-3909',label:'الجوال',color:'#b9e4a6',fg:'#24531a',ch:'ي'},
+ {name:'خالد العلمي',phone:'0599603082',label:'الجوال',color:'#d2b8f2',fg:'#3e1b6b',ch:'خ'},
+ {name:'ليلى حسونة',phone:'0594628194',label:'الجوال',color:'#8fd9d2',fg:'#0b4a45',ch:'ل'},
+ {name:'رامي الشوا',phone:'059-821-9935',label:'الجوال',color:'#f6c177',fg:'#5a3b0a',ch:'ر'},
+ {name:'نور الهدى',phone:'0591819093',label:'الجوال',color:'#9ecbff',fg:'#0c3b6b',ch:'ن'},
+ {name:'عمر البرغوثي',phone:'0597865797',label:'الجوال',color:'#f4a6b8',fg:'#6b1230',ch:'ع'},
+ {name:'سارة المصري',phone:'059-543-2319',label:'الجوال',color:'#b9e4a6',fg:'#24531a',ch:'س'},
+ {name:'إبراهيم دحلان',phone:'0594875749',label:'الجوال',color:'#d2b8f2',fg:'#3e1b6b',ch:'إ'},
+ {name:'هبة القدوة',phone:'0591186252',label:'الجوال',color:'#8fd9d2',fg:'#0b4a45',ch:'ه'},
+ {name:'طارق الحداد',phone:'059-760-1895',label:'الجوال',color:'#f6c177',fg:'#5a3b0a',ch:'ط'},
+ {name:'دانا سلامة',phone:'0595597971',label:'الجوال',color:'#9ecbff',fg:'#0c3b6b',ch:'د'},
+ {name:'ماهر أبو عودة',phone:'0591471049',label:'الجوال',color:'#f4a6b8',fg:'#6b1230',ch:'م'},
+ {name:'رنا الأغا',phone:'059-746-5075',label:'الجوال',color:'#b9e4a6',fg:'#24531a',ch:'ر'},
+ {name:'باسل شاهين',phone:'0592917034',label:'الجوال',color:'#d2b8f2',fg:'#3e1b6b',ch:'ب'},
+ {name:'ياسمين زقوت',phone:'0592366712',label:'الجوال',color:'#8fd9d2',fg:'#0b4a45',ch:'ي'},
+ {name:'وسام العجرمي',phone:'059-768-4268',label:'الجوال',color:'#f6c177',fg:'#5a3b0a',ch:'و'},
+ {name:'ثائر مطر',phone:'0594656321',label:'الجوال',color:'#9ecbff',fg:'#0c3b6b',ch:'ث'}
+];
+function normalize(p){let d=p.replace(/\D/g,'');if(d.startsWith('972'))d='0'+d.slice(3);return d}
+const isMatch=c=>/^059\d{7}$/.test(normalize(c.phone));
+function renderContacts(){
+ const box=document.getElementById('contacts');box.innerHTML='<div class="suggested">مقترحة</div>';
+ const list=allContacts.filter(isMatch);
+ if(!list.length){box.insertAdjacentHTML('beforeend','<div class="empty">لا توجد جهات اتصال</div>');return}
+ list.forEach(c=>{const d=document.createElement('div');d.className='contact';
+  d.innerHTML=`<div class="avatar" style="background:${c.color};color:${c.fg}">${c.ch}</div><div class="contact-info"><div class="contact-name">${c.name}</div><div class="contact-phone">${c.label} <span class="num-ltr">${c.phone}</span></div></div><svg class="phone-icon" viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="#444" d="M6.54 5c.06.89.21 1.76.45 2.59l-1.2 1.2c-.41-1.2-.67-2.47-.76-3.79h1.51m9.86 12.02c.85.24 1.72.39 2.6.45v1.49c-1.32-.09-2.59-.35-3.8-.75l1.2-1.19M7.5 3H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.49c0-.55-.45-1-1-1-1.24 0-2.45-.2-3.57-.57-.1-.04-.21-.05-.31-.05-.26 0-.51.1-.71.29l-2.2 2.2c-2.83-1.45-5.15-3.76-6.59-6.59l2.2-2.2c.28-.28.36-.67.25-1.02C8.7 6.45 8.5 5.25 8.5 4c0-.55-.45-1-1-1z"/></svg>`;
+  d.onclick=()=>{dial.value=normalize(c.phone);showTab('dial')};box.appendChild(d)});
+}
+function showTab(t){
+ document.getElementById('phone').className='phone view-'+t;
+ document.getElementById('tab-dial').classList.toggle('active',t==='dial');
+ document.getElementById('tab-home').classList.toggle('active',t==='home');
+}
+document.getElementById('tab-dial').onclick=()=>showTab('dial');
+document.getElementById('tab-home').onclick=()=>showTab('home');
+renderContacts();
+let timer=null;
+function busy(fn){sheet.classList.add('show','busy');scrim.classList.add('show');clearTimeout(timer);timer=setTimeout(()=>{timer=null;sheet.classList.remove('busy');fn()},1300)}
+function openStage(s){stage=s;reply.value='';busy(()=>{render();setTimeout(()=>reply.focus({preventScroll:true}),100)})}
+function closeStage(){clearTimeout(timer);timer=null;sheet.classList.remove('show','busy','final');scrim.classList.remove('show');reply.value='';}
+function render(){
+ let text='';
+ if(stage==='menu')text='محفظة جوال باي\n1. التحويل لصديق\n2. الدفع لتاجر\n3. فحص الرصيد';
+ else if(stage==='balance'){text='الرصيد الحالي : '+getBal();document.querySelector('.ussd-input').style.display='none';document.querySelector('.actions').style.display='flex';}
+ else if(stage==='transfer-phone')text='ادخل رقم محفظة الصديق المراد التحويل له\n00. الرجوع إلى القائمة الرئيسية';
+ else if(stage==='transfer-amount')text=(flow==='friend'?'ادخل المبلغ المراد تحويله':'ادخل المبلغ المراد تحويله')+'\n00. الرجوع إلى القائمة الرئيسية';
+ else if(stage==='transfer-confirm')text=(flow==='friend'?`سيتم تحويل ${amount} شيقل إلى \u2066${destination}\u2069`:`سيتم تحويل ${amount} شيقل إلى التاجر \u2066${destination}\u2069`)+'\n1. للتأكيد\n2. للإلغاء';
+ else if(stage==='merchant')text='ادخل رقم التاجر المراد التحويل له\n00. الرجوع إلى القائمة الرئيسية';
+ else if(stage==='pin')text='ادخل الرقم السري (4 أرقام)\n00. الرجوع إلى القائمة الرئيسية';
+ else if(stage==='success'){text='تم تحويل المبلغ بنجاح';document.querySelector('.ussd-input').style.display='none';document.querySelector('.actions').style.display='flex';}
+ else if(stage==='invalid')text='الرمز غير معروف .\nاكتب *110# لفتح القائمة.';
+ else text='أدخل الاختيار';
+ message.textContent=text;
+ sheet.classList.toggle('final',stage==='balance'||stage==='success');
+ if(stage!=='balance'&&stage!=='success'){document.querySelector('.ussd-input').style.display='block'}
+ document.getElementById('send').style.display=(stage==='balance'||stage==='success')?'none':'block';
+ document.getElementById('cancel').textContent=(stage==='balance'||stage==='success')?'حسنًا':'إلغاء';
+}
+let amount='1',flow='friend';
+const INIT=12750,DAY=864e5;let bal={balance:INIT,since:null};
+try{const r=JSON.parse(localStorage.getItem('ussdBal')||'null');if(r&&typeof r.balance==='number')bal=r}catch(e){}
+function saveBal(){try{localStorage.setItem('ussdBal',JSON.stringify(bal))}catch(e){}}
+function getBal(){if(bal.since&&Date.now()-bal.since>=DAY){bal={balance:INIT,since:null};saveBal()}return bal.balance}
+function deduct(n){getBal();bal.balance-=n;if(!bal.since)bal.since=Date.now();saveBal()}
+getBal();
+document.getElementById('send').onclick=()=>{
+ if(timer)return;
+ const v=reply.value.trim();
+ if(stage==='menu'){if(v==='1'){flow='friend';stage='pin'}else if(v==='2'){flow='merchant';stage='pin'}else if(v==='3')stage='balance';else return}
+ else if(stage==='pin'){if(v==='00')stage='menu';else if(/^\d{4}$/.test(v))stage=flow==='friend'?'transfer-phone':'merchant';else {message.textContent='الرقم السري يجب أن يتكون من 4 أرقام';return}}
+ else if(stage==='transfer-phone'||stage==='merchant'){if(v==='00')stage='menu';else if(v){destination=v;stage='transfer-amount'}else return}
+ else if(stage==='transfer-amount'){if(v==='00')stage='menu';else if(v&&Number(v)>0){if(Number(v)>getBal()){message.textContent='الرصيد غير كافٍ. رصيدك الحالي '+getBal();return}amount=String(Number(v));stage='transfer-confirm'}else return}
+ else if(stage==='transfer-confirm'){if(v==='1'){deduct(Number(amount));stage='success'}else if(v==='2')stage='menu';else return}
+ else if(stage==='invalid'){stage='menu'}
+ reply.value='';busy(()=>{render();setTimeout(()=>reply.focus({preventScroll:true}),100)});
+};
+document.getElementById('cancel').onclick=()=>{if(timer)return;if(stage==='balance'||stage==='success'){closeStage();document.querySelector('.ussd-input').style.display='block';document.querySelector('.actions').style.display='flex';dial.value=''}else closeStage()};
+scrim.onclick=()=>{if(!timer)closeStage()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeStage();if(e.key==='Enter'&&sheet.classList.contains('show'))document.getElementById('send').click()});
+</script>
+</body>
+</html>
